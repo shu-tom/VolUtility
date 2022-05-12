@@ -1,15 +1,22 @@
-FROM ubuntu:16.04
+FROM ubuntu:20.04
 MAINTAINER kevthehermit (https://github.com/kevthehermit/VolUtility)
 
 # Version Vars
-ENV YARA_VERSION        3.4.0
-ENV SSDEEP_VERSION      2.13
+ENV YARA_VERSION        4.2.0
+ENV SSDEEP_VERSION      2.14.1
+
+# MaxMind GeoLite2
+#ENV LICENSE_KEY xxxxxxxxxxxxxxxx
 
 # Switch to user root
 USER root
 
+# set timezone
+ENV TZ=Asia/Tokyo
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
 # Install OS Dependancies
-RUN apt-get update && apt-get install -yq \
+RUN apt update && apt install -yq \
  autoconf \
  automake \
  autopoint \
@@ -20,39 +27,55 @@ RUN apt-get update && apt-get install -yq \
  libtool \
  nano \
  pkg-config \
- python-dev \
- python-pip \
- sudo
-
-
-# Install Mongo
-RUN \
-apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv EA312927 && \
-echo "deb http://repo.mongodb.org/apt/ubuntu xenial/mongodb-org/3.2 multiverse" | tee /etc/apt/sources.list.d/mongodb-org-3.2.list && \
-apt-get update && \
-apt-get install -yq mongodb-org
+ python3-dev \
+ python3-pip \
+ sudo \
+ software-properties-common
 
 # Install packages from source
 # Make Tmp Dir
 RUN mkdir ~/tmp_build
 
+# Install python2
+RUN apt-get update && apt-get install -yq \
+ python2 \
+ python-dev
+
+RUN cd ~/tmp_build && \
+ curl https://bootstrap.pypa.io/pip/2.7/get-pip.py --output get-pip.py && \
+ python2 get-pip.py
+
+# Install Mongo
+RUN \
+curl -fsSL https://www.mongodb.org/static/pgp/server-5.0.asc | sudo apt-key add - && \
+echo "deb https://repo.mongodb.org/apt/ubuntu focal/mongodb-org/5.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-5.0.list && \
+apt-get update && \
+apt-get install -yq mongodb-org
+
 # Install Yara
 RUN cd ~/tmp_build && \
- curl -sSL https://github.com/plusvic/yara/archive/v$YARA_VERSION.tar.gz | \
+ curl -sSL https://github.com/VirusTotal/yara/archive/refs/tags/v${YARA_VERSION}.tar.gz | \
  tar -xzC . && \
- cd yara-$YARA_VERSION && \
+ cd yara-${YARA_VERSION} && \
  bash build.sh && \
  make install && \
- cd yara-python && \
- python setup.py build && \
- python setup.py install && \
- cd ../.. && \
- rm -rf yara-$YARA_VERSION && \
+ cd .. && \
+ rm -rf yara-${YARA_VERSION} && \
  ldconfig
+
+# Install Yara-python
+RUN cd ~/tmp_build && \
+ curl -sSL https://github.com/VirusTotal/yara-python/archive/refs/tags/v${YARA_VERSION}.tar.gz | \
+ tar -xzC . && \
+ cd yara-python-${YARA_VERSION} && \
+ python3 setup.py build && \
+ python3 setup.py install && \
+ cd .. && \
+ rm -rf yara-python-${YARA_VERSION}
 
 # Install SSDEEP
 RUN cd ~/tmp_build &&\
- curl -sSL http://sourceforge.net/projects/ssdeep/files/ssdeep-${SSDEEP_VERSION}/ssdeep-${SSDEEP_VERSION}.tar.gz/download | \
+ curl -sSL https://github.com/ssdeep-project/ssdeep/releases/download/release-${SSDEEP_VERSION}/ssdeep-${SSDEEP_VERSION}.tar.gz | \
  tar -xzC .  && \
  cd ssdeep-${SSDEEP_VERSION} && \
  ./configure && \
@@ -63,10 +86,10 @@ RUN cd ~/tmp_build &&\
 
 # Get the maxmind database for ip lookup
 RUN cd ~/tmp_build && \
- curl -sSL http://geolite.maxmind.com/download/geoip/database/GeoLite2-City.mmdb.gz > GeoLite2-City.mmdb.gz && \
- gzip -d GeoLite2-City.mmdb.gz && \
- mkdir /usr/share/GeoIP/ && \
- mv GeoLite2-City.mmdb /usr/share/GeoIP/
+ curl -o GeoLite2-Country.tar.gz -sSL "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-Country&license_key=${LICENSE_KEY}&suffix=tar.gz" && \
+ tar -xzvf GeoLite2-Country.tar.gz && \
+ mkdir -p /usr/share/GeoIP/ && \
+ mv GeoLite2-Country_*/GeoLite2-Country.mmdb /usr/share/GeoIP/
 
 # Install and Build libpff
 RUN cd ~/tmp_build && \
@@ -99,7 +122,7 @@ RUN cd /opt && \
 
 # Install PIP Requirements.
 RUN cd /opt/VolUtility && \
- pip install -r requirements.txt
+ pip2 install -r requirements.txt
 
  # Clean Up
 RUN rm -rf ~/tmp_build
