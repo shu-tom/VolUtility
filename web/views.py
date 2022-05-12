@@ -7,6 +7,7 @@ import multiprocessing
 import tempfile
 from common import parse_config, checksum_md5
 from web.modules import __extensions__
+from distutils.version import StrictVersion
 
 config = parse_config()
 logger = logging.getLogger(__name__)
@@ -260,7 +261,7 @@ def session_page(request, session_id):
     includes = []
 
     # Check Vol Version
-    if float(vol_interface.vol_version) < 2.5:
+    if StrictVersion(vol_interface.vol_version) < StrictVersion('2.5'):
         error_line = 'UNSUPPORTED VOLATILITY VERSION. REQUIRES 2.5 FOUND {0}'.format(vol_interface.vol_version)
 
     # Get the session
